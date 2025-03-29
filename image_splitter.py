@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import os
 import glob
+from config import *
 
 def detect_paragraph_starts(image_path):
     # 读取图像 - 使用 imdecode
@@ -14,7 +15,7 @@ def detect_paragraph_starts(image_path):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     
     # 使用高斯模糊减少噪声
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    blurred = cv2.GaussianBlur(gray, IMAGE_PROCESSING['GAUSSIAN_BLUR_KERNEL'], 0)
     
     # 使用Otsu's二值化
     _, binary = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
@@ -27,16 +28,15 @@ def detect_paragraph_starts(image_path):
     line_spaces = []
     last_end = None
     start = None
-    min_line_height = 10
     
     # 使用动态阈值找到文本行
-    threshold = np.max(h_proj) * 0.05
+    threshold = np.max(h_proj) * IMAGE_PROCESSING['PROJECTION_THRESHOLD']
     
     for i, proj in enumerate(h_proj):
         if proj > threshold and start is None:
             start = i
         elif (proj <= threshold or i == len(h_proj)-1) and start is not None:
-            if i - start >= min_line_height:
+            if i - start >= IMAGE_PROCESSING['MIN_LINE_HEIGHT']:
                 text_lines.append((start, i))
                 if last_end is not None:
                     line_spaces.append(start - last_end)
@@ -115,7 +115,8 @@ def detect_paragraph_starts(image_path):
     
     return text_lines, indented_lines
 
-def split_image_by_paragraphs(image_path, output_dir="output_paragraphs", marked_dir="output_marked"):
+def split_image_by_paragraphs(image_path, output_dir=DIRECTORIES['OUTPUT_PARAGRAPHS'], 
+                            marked_dir=DIRECTORIES['OUTPUT_MARKED']):
     """
     根据段落检测结果裁切图像并保存
     
@@ -168,11 +169,19 @@ def split_image_by_paragraphs(image_path, output_dir="output_paragraphs", marked
     # 标记段落起始
     for i, (start_y, end_y) in enumerate(text_lines):
         if i in major_breaks:
-            # 使用绿色标记行间距划分，贯穿整个页面宽度
-            cv2.line(marked_img, (0, start_y-2), (marked_img.shape[1], start_y-2), (0, 255, 0), 2)
+            # 使用绿色标记行间距划分
+            cv2.line(marked_img, 
+                    (0, start_y-MARK_LINE['VERTICAL_OFFSET']), 
+                    (marked_img.shape[1], start_y-MARK_LINE['VERTICAL_OFFSET']), 
+                    COLORS['SPACE_MARK'], 
+                    MARK_LINE['THICKNESS'])
         elif i in indented_lines:
-            # 使用红色标记缩进划分，贯穿整个页面宽度
-            cv2.line(marked_img, (0, start_y-2), (marked_img.shape[1], start_y-2), (0, 0, 255), 2)
+            # 使用红色标记缩进划分
+            cv2.line(marked_img, 
+                    (0, start_y-MARK_LINE['VERTICAL_OFFSET']), 
+                    (marked_img.shape[1], start_y-MARK_LINE['VERTICAL_OFFSET']), 
+                    COLORS['INDENT_MARK'], 
+                    MARK_LINE['THICKNESS'])
     
     # 保存标记后的图像
     base_name = os.path.splitext(os.path.basename(image_path))[0]
@@ -209,7 +218,9 @@ def split_image_by_paragraphs(image_path, output_dir="output_paragraphs", marked
         output_path = os.path.join(output_dir, f'{base_name}_para_{i+1}.png')
         cv2.imencode('.png', para_img)[1].tofile(output_path)
 
-def process_directory(input_dir="img_input", output_dir="output_paragraphs", marked_dir="output_marked"):
+def process_directory(input_dir=DIRECTORIES['INPUT_DIR'], 
+                     output_dir=DIRECTORIES['OUTPUT_PARAGRAPHS'], 
+                     marked_dir=DIRECTORIES['OUTPUT_MARKED']):
     """
     处理输入目录中的所有图像
     
@@ -225,7 +236,7 @@ def process_directory(input_dir="img_input", output_dir="output_paragraphs", mar
     
     # 获取所有图像文件
     image_files = []
-    for ext in ['*.png', '*.jpg', '*.jpeg', '*.bmp']:
+    for ext in IMAGE_EXTENSIONS:
         image_files.extend(glob.glob(os.path.join(input_dir, ext)))
     
     if not image_files:
