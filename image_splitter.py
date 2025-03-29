@@ -43,57 +43,75 @@ def detect_paragraph_starts(image_path):
                 last_end = i
             start = None
     
-    # 分析行间距
+    # 分析行间距，先找出大段落
+    major_breaks = [0]  # 第一行总是新段落
     if line_spaces:
-        avg_space = np.mean(line_spaces)
-        std_space = np.std(line_spaces)
+        # 计算行间距的统计信息
+        spaces_array = np.array(line_spaces)
+        median_space = np.median(spaces_array)
+        mean_space = np.mean(spaces_array)
+        std_space = np.std(spaces_array)
+        
+        # 设置行间距阈值 - 使用原来的阈值
+        major_space_threshold = max(
+            median_space * 1.3,  # 比中位数大30%
+            mean_space + std_space * 0.5  # 或比平均值加上半个标准差
+        )
+        
+        # 根据大间距识别主要段落
+        for i in range(len(line_spaces)):
+            if line_spaces[i] > major_space_threshold:
+                major_breaks.append(i + 1)
+    major_breaks.append(len(text_lines))  # 添加末尾位置
     
-    # 对每一行检测最左边的文本位置
-    paragraph_starts = []
-    for start_y, end_y in text_lines:
-        # 扩展行高以确保捕获完整字符
-        start_y = max(0, start_y - 2)
-        end_y = min(binary.shape[0], end_y + 2)
-        
-        line_img = binary[start_y:end_y, :]
-        # 获取垂直投影
-        v_proj = np.sum(line_img, axis=0)
-        
-        # 使用滑动窗口平滑处理
-        window_size = 10
-        smoothed_proj = np.convolve(v_proj, np.ones(window_size)/window_size, mode='valid')
-        
-        # 找到第一个显著文本位置
-        text_threshold = np.max(smoothed_proj) * 0.15
-        for x, proj in enumerate(smoothed_proj):
-            if proj > text_threshold:
-                paragraph_starts.append(x)
-                break
+    # 在每个大段落内部检查缩进
+    indented_lines = [major_breaks[0]]  # 起始位置
     
-    # 分析段落起始位置
-    indented_lines = []
-    if paragraph_starts:
-        # 计算起始位置的统计信息
-        starts_array = np.array(paragraph_starts)
-        median_start = np.median(starts_array)
-        std_dev = np.std(starts_array)
-        
-        # 第一行总是新段落
-        indented_lines.append(0)
-        
-        for i in range(1, len(paragraph_starts)):
-            is_new_paragraph = False
+    # 对每个大段落进行内部分析
+    for seg_start, seg_end in zip(major_breaks[:-1], major_breaks[1:]):
+        # 如果段落只有一行，直接跳过
+        if seg_end - seg_start <= 1:
+            continue
             
-            # 检查缩进（相对于中位数）
-            if paragraph_starts[i] > median_start + std_dev:
-                is_new_paragraph = True
+        # 分析这个段落内的所有行的缩进
+        paragraph_starts = []
+        for i in range(seg_start, seg_end):
+            start_y, end_y = text_lines[i]
+            # 扩展行高以确保捕获完整字符
+            start_y = max(0, start_y - 2)
+            end_y = min(binary.shape[0], end_y + 2)
             
-            # 检查行间距（如果大于平均行间距的1.5倍）
-            if i > 0 and line_spaces[i-1] > avg_space * 1.5:
-                is_new_paragraph = True
-                
-            if is_new_paragraph:
-                indented_lines.append(i)
+            line_img = binary[start_y:end_y, :]
+            # 获取垂直投影
+            v_proj = np.sum(line_img, axis=0)
+            
+            # 使用滑动窗口平滑处理
+            window_size = 10
+            smoothed_proj = np.convolve(v_proj, np.ones(window_size)/window_size, mode='valid')
+            
+            # 找到第一个显著文本位置
+            text_threshold = np.max(smoothed_proj) * 0.15
+            for x, proj in enumerate(smoothed_proj):
+                if proj > text_threshold:
+                    paragraph_starts.append((i, x))
+                    break
+        
+        # 如果找到了缩进位置
+        if paragraph_starts:
+            # 计算这个段落内的缩进统计信息
+            start_positions = [x for _, x in paragraph_starts]
+            median_start = np.median(start_positions)
+            std_dev = np.std(start_positions)
+            
+            # 检查每一行的缩进
+            for i, start_pos in paragraph_starts:
+                if i > seg_start:  # 跳过段落第一行（已经是段落起始）
+                    # 如果缩进明显，标记为新段落
+                    if start_pos > median_start + std_dev:  # 使用原来的阈值
+                        indented_lines.append(i)
+    
+    # 确保段落起始位置有序且不重复
+    indented_lines = sorted(list(set(indented_lines)))
     
     return text_lines, indented_lines
 
@@ -116,46 +134,79 @@ def split_image_by_paragraphs(image_path, output_dir="output_paragraphs", marked
         print(f"无法读取图像: {image_path}")
         return
     
-    # 获取检测结果
+    # 获取检测结果和大段落分隔位置
     text_lines, indented_lines = detect_paragraph_starts(image_path)
     
     # 创建标记后的图像副本
     marked_img = img.copy()
     
     # 在图像上标记段落起始
+    # 获取大段落分隔位置（通过行间距判断）
+    major_breaks = [0]  # 第一行总是新段落
+    if len(text_lines) > 1:
+        line_spaces = []
+        for i in range(1, len(text_lines)):
+            line_spaces.append(text_lines[i][0] - text_lines[i-1][1])
+        
+        # 计算行间距的统计信息
+        spaces_array = np.array(line_spaces)
+        median_space = np.median(spaces_array)
+        mean_space = np.mean(spaces_array)
+        std_space = np.std(spaces_array)
+        
+        # 设置行间距阈值
+        major_space_threshold = max(
+            median_space * 1.3,
+            mean_space + std_space * 0.5
+        )
+        
+        # 找出大间距位置
+        for i in range(len(line_spaces)):
+            if line_spaces[i] > major_space_threshold:
+                major_breaks.append(i + 1)
+    
+    # 标记段落起始
     for i, (start_y, end_y) in enumerate(text_lines):
-        if i in indented_lines:
-            cv2.line(marked_img, (0, start_y-2), (50, start_y-2), (0, 0, 255), 2)
+        if i in major_breaks:
+            # 使用绿色标记行间距划分，贯穿整个页面宽度
+            cv2.line(marked_img, (0, start_y-2), (marked_img.shape[1], start_y-2), (0, 255, 0), 2)
+        elif i in indented_lines:
+            # 使用红色标记缩进划分，贯穿整个页面宽度
+            cv2.line(marked_img, (0, start_y-2), (marked_img.shape[1], start_y-2), (0, 0, 255), 2)
     
     # 保存标记后的图像
     base_name = os.path.splitext(os.path.basename(image_path))[0]
     marked_path = os.path.join(marked_dir, f'{base_name}_marked.png')
-    # 使用 imencode 保存图像
     cv2.imencode('.png', marked_img)[1].tofile(marked_path)
+    
+    # 合并所有段落分隔位置
+    all_breaks = sorted(list(set(major_breaks + indented_lines)))
     
     # 获取段落的起始和结束位置
     paragraph_bounds = []
-    start_idx = 0
-    
-    for i in range(len(text_lines)):
-        if i + 1 in indented_lines or i + 1 == len(text_lines):
-            # 获取段落的开始和结束行
-            para_start = text_lines[start_idx][0]
-            para_end = text_lines[i][1]
+    for i in range(len(all_breaks)):
+        start_idx = all_breaks[i]
+        # 如果是最后一个分隔点，使用文本行的末尾作为结束位置
+        if i == len(all_breaks) - 1:
+            end_idx = len(text_lines) - 1
+        else:
+            end_idx = all_breaks[i + 1] - 1
             
-            # 添加额外的边距
-            margin = 5
-            para_start = max(0, para_start - margin)
-            para_end = min(img.shape[0], para_end + margin)
-            
-            paragraph_bounds.append((para_start, para_end))
-            start_idx = i + 1
+        # 获取段落的开始和结束行
+        para_start = text_lines[start_idx][0]
+        para_end = text_lines[end_idx][1]
+        
+        # 添加额外的边距
+        margin = 5
+        para_start = max(0, para_start - margin)
+        para_end = min(img.shape[0], para_end + margin)
+        
+        paragraph_bounds.append((para_start, para_end))
     
     # 裁切并保存每个段落
     for i, (start_y, end_y) in enumerate(paragraph_bounds):
         para_img = img[start_y:end_y, :]
         output_path = os.path.join(output_dir, f'{base_name}_para_{i+1}.png')
-        # 使用 imencode 保存图像
         cv2.imencode('.png', para_img)[1].tofile(output_path)
 
 def process_directory(input_dir="img_input", output_dir="output_paragraphs", marked_dir="output_marked"):
