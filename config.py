@@ -17,9 +17,9 @@ PARAGRAPH_DETECTION = {
 # 文件和目录配置
 DIRECTORIES = {
     'INPUT_DIR': 'img_input',
-    'OUTPUT_PARAGRAPHS': 'output_paragraphs',
-    'OUTPUT_MARKED': 'output_marked',
-    'OUTPUT_SPLIT': 'output_split',  # 正文注释分离的输出目录
+    'OUTPUT_REGIONS': 'output_regions',  # 区域分割的输出目录
+    'OUTPUT_SECTIONS': 'output_sections',  # 段落分割的输出目录
+    'OUTPUT_MARKED': 'output_marked',  # 标记后的图像
 }
 
 # 图像格式

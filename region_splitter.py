@@ -262,7 +262,7 @@ class ImageProcessor:
     5. 分割并保存图像
     """
     
-    def __init__(self, image_path, output_dir=DIRECTORIES['OUTPUT_SPLIT']):
+    def __init__(self, image_path, output_dir=DIRECTORIES['OUTPUT_REGIONS']):
         self.image_path = image_path
         self.output_dir = output_dir
         self.base_name = os.path.splitext(os.path.basename(image_path))[0]
@@ -301,8 +301,10 @@ class ImageProcessor:
     
     def save_sections(self):
         """步骤5：分割并保存图像"""
-        # 创建输出目录
+        # 创建输出目录和标记目录
         os.makedirs(self.output_dir, exist_ok=True)
+        marked_dir = os.path.join(self.output_dir, 'marked')
+        os.makedirs(marked_dir, exist_ok=True)
         
         # 处理图像分段
         process_image_sections(
@@ -314,9 +316,9 @@ class ImageProcessor:
             self.base_name
         )
         
-        # 保存标记图像
+        # 保存标记图像到marked子目录
         cv2.imencode('.png', self.marked_img)[1].tofile(
-            os.path.join(self.output_dir, f'{self.base_name}_marked.png'))
+            os.path.join(marked_dir, f'{self.base_name}_marked.png'))
         return self
     
     def process(self):
@@ -331,7 +333,7 @@ class ImageProcessor:
             print(f"处理图像 {self.image_path} 时出错: {str(e)}")
             return None
 
-def split_text_and_notes(image_path, output_dir=DIRECTORIES['OUTPUT_SPLIT']):
+def split_text_and_notes(image_path, output_dir=DIRECTORIES['OUTPUT_REGIONS']):
     """分离正文和注释，去除角标和页码"""
     processor = ImageProcessor(image_path, output_dir)
     return processor.process()

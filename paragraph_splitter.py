@@ -115,18 +115,17 @@ def detect_paragraph_starts(image_path):
     
     return text_lines, indented_lines
 
-def split_image_by_paragraphs(image_path, output_dir=DIRECTORIES['OUTPUT_PARAGRAPHS'], 
-                            marked_dir=DIRECTORIES['OUTPUT_MARKED']):
+def split_image_by_paragraphs(image_path, output_dir=DIRECTORIES['OUTPUT_SECTIONS']):
     """
-    根据段落检测结果裁切图像并保存
+    将图像按段落分割并保存
     
     Args:
         image_path: 输入图像路径
-        output_dir: 裁切后段落的输出目录路径
-        marked_dir: 标记后图像的输出目录路径
+        output_dir: 段落分割结果的输出目录
     """
-    # 创建输出目录
+    # 创建输出目录和标记目录
     os.makedirs(output_dir, exist_ok=True)
+    marked_dir = os.path.join(output_dir, 'marked')
     os.makedirs(marked_dir, exist_ok=True)
     
     # 读取图像 - 使用完整的 Unicode 路径
@@ -183,7 +182,7 @@ def split_image_by_paragraphs(image_path, output_dir=DIRECTORIES['OUTPUT_PARAGRA
                     COLORS['INDENT_MARK'], 
                     MARK_LINE['THICKNESS'])
     
-    # 保存标记后的图像
+    # 保存标记后的图像到marked子目录
     base_name = os.path.splitext(os.path.basename(image_path))[0]
     marked_path = os.path.join(marked_dir, f'{base_name}_marked.png')
     cv2.imencode('.png', marked_img)[1].tofile(marked_path)
@@ -218,41 +217,40 @@ def split_image_by_paragraphs(image_path, output_dir=DIRECTORIES['OUTPUT_PARAGRA
         output_path = os.path.join(output_dir, f'{base_name}_para_{i+1}.png')
         cv2.imencode('.png', para_img)[1].tofile(output_path)
 
-def process_directory(input_dir=DIRECTORIES['INPUT_DIR'], 
-                     output_dir=DIRECTORIES['OUTPUT_PARAGRAPHS'], 
-                     marked_dir=DIRECTORIES['OUTPUT_MARKED']):
+def process_directory(input_dir=DIRECTORIES['OUTPUT_REGIONS'], 
+                     output_dir=DIRECTORIES['OUTPUT_SECTIONS']):
     """
-    处理输入目录中的所有图像
+    处理区域分割后的图像，进行段落分割
     
     Args:
-        input_dir: 输入图像目录
-        output_dir: 裁切后段落的输出目录
-        marked_dir: 标记后图像的输出目录
+        input_dir: 区域分割的输出目录（作为输入）
+        output_dir: 段落分割结果的输出目录
     """
     # 确保输入目录存在
     if not os.path.exists(input_dir):
-        print(f"错误：输入目录 {input_dir} 不存在！")
+        print(f"错误：区域分割目录 {input_dir} 不存在！")
         return
     
-    # 获取所有图像文件
+    # 获取所有区域分割后的图像文件
     image_files = []
     for ext in IMAGE_EXTENSIONS:
-        image_files.extend(glob.glob(os.path.join(input_dir, ext)))
+        image_files.extend(glob.glob(os.path.join(input_dir, '*_main_*.png')))  # 只处理主文本部分
+        image_files.extend(glob.glob(os.path.join(input_dir, '*_full_*.png')))  # 处理完整文本
     
     if not image_files:
-        print(f"错误：在 {input_dir} 目录下没有找到图像文件！")
+        print(f"错误：在 {input_dir} 目录下没有找到区域分割后的图像文件！")
         return
     
-    print(f"==> 开始处理图像...")
+    print(f"==> 开始处理区域分割后的图像...")
     
     # 处理每个图像文件
     for image_path in image_files:
         print(f"正在处理: {os.path.basename(image_path)}")
-        split_image_by_paragraphs(image_path, output_dir, marked_dir)
+        split_image_by_paragraphs(image_path, output_dir)
     
     print(f"==> 处理完成！")
-    print(f"裁切后的段落保存在: {output_dir}")
-    print(f"标记后的图像保存在: {marked_dir}")
+    print(f"段落分割结果保存在: {output_dir}")
+    print(f"标记后的图像保存在: {os.path.join(output_dir, 'marked')}")
 
 if __name__ == "__main__":
     process_directory()

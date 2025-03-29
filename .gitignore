@@ -70,5 +70,5 @@ files/
 output/
 output_paragraphs/
 img_input/
-output_marked/
-output_split/
+output_sections/
+output_regions/
