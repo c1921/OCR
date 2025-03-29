@@ -69,3 +69,5 @@ dmypy.json
 files/
 output/
 output_paragraphs/
+img_input/
+output_marked

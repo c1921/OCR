@@ -1,11 +1,15 @@
 import cv2
 import numpy as np
-from collections import Counter
 import os
+import glob
 
 def detect_paragraph_starts(image_path):
-    # 读取图像
-    img = cv2.imread(image_path)
+    # 读取图像 - 使用 imdecode
+    img = cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        print(f"无法读取图像: {image_path}")
+        return [], []
+        
     # 转换为灰度图
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     
@@ -93,20 +97,41 @@ def detect_paragraph_starts(image_path):
     
     return text_lines, indented_lines
 
-def split_image_by_paragraphs(image_path, output_dir="output"):
+def split_image_by_paragraphs(image_path, output_dir="output_paragraphs", marked_dir="output_marked"):
     """
     根据段落检测结果裁切图像并保存
     
     Args:
         image_path: 输入图像路径
-        output_dir: 输出目录路径
+        output_dir: 裁切后段落的输出目录路径
+        marked_dir: 标记后图像的输出目录路径
     """
     # 创建输出目录
     os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(marked_dir, exist_ok=True)
     
-    # 读取图像
-    img = cv2.imread(image_path)
+    # 读取图像 - 使用完整的 Unicode 路径
+    img = cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        print(f"无法读取图像: {image_path}")
+        return
+    
+    # 获取检测结果
     text_lines, indented_lines = detect_paragraph_starts(image_path)
+    
+    # 创建标记后的图像副本
+    marked_img = img.copy()
+    
+    # 在图像上标记段落起始
+    for i, (start_y, end_y) in enumerate(text_lines):
+        if i in indented_lines:
+            cv2.line(marked_img, (0, start_y-2), (50, start_y-2), (0, 0, 255), 2)
+    
+    # 保存标记后的图像
+    base_name = os.path.splitext(os.path.basename(image_path))[0]
+    marked_path = os.path.join(marked_dir, f'{base_name}_marked.png')
+    # 使用 imencode 保存图像
+    cv2.imencode('.png', marked_img)[1].tofile(marked_path)
     
     # 获取段落的起始和结束位置
     paragraph_bounds = []
@@ -128,35 +153,44 @@ def split_image_by_paragraphs(image_path, output_dir="output"):
     
     # 裁切并保存每个段落
     for i, (start_y, end_y) in enumerate(paragraph_bounds):
-        # 裁切段落
         para_img = img[start_y:end_y, :]
-        
-        # 生成输出文件名
-        output_path = os.path.join(output_dir, f'paragraph_{i+1}.png')
-        
-        # 保存图像
-        cv2.imwrite(output_path, para_img)
+        output_path = os.path.join(output_dir, f'{base_name}_para_{i+1}.png')
+        # 使用 imencode 保存图像
+        cv2.imencode('.png', para_img)[1].tofile(output_path)
 
-def visualize_paragraphs(image_path):
-    img = cv2.imread(image_path)
-    text_lines, indented_lines = detect_paragraph_starts(image_path)
+def process_directory(input_dir="img_input", output_dir="output_paragraphs", marked_dir="output_marked"):
+    """
+    处理输入目录中的所有图像
     
-    # 在图像上标记段落起始
-    for i, (start_y, end_y) in enumerate(text_lines):
-        if i in indented_lines:
-            # 在新段落处画一个红色标记
-            cv2.line(img, (0, start_y-2), (50, start_y-2), (0, 0, 255), 2)
+    Args:
+        input_dir: 输入图像目录
+        output_dir: 裁切后段落的输出目录
+        marked_dir: 标记后图像的输出目录
+    """
+    # 确保输入目录存在
+    if not os.path.exists(input_dir):
+        print(f"错误：输入目录 {input_dir} 不存在！")
+        return
     
-    # 显示结果
-    cv2.imshow('Paragraph Detection', img)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    # 获取所有图像文件
+    image_files = []
+    for ext in ['*.png', '*.jpg', '*.jpeg', '*.bmp']:
+        image_files.extend(glob.glob(os.path.join(input_dir, ext)))
+    
+    if not image_files:
+        print(f"错误：在 {input_dir} 目录下没有找到图像文件！")
+        return
+    
+    print(f"==> 开始处理图像...")
+    
+    # 处理每个图像文件
+    for image_path in image_files:
+        print(f"正在处理: {os.path.basename(image_path)}")
+        split_image_by_paragraphs(image_path, output_dir, marked_dir)
+    
+    print(f"==> 处理完成！")
+    print(f"裁切后的段落保存在: {output_dir}")
+    print(f"标记后的图像保存在: {marked_dir}")
 
-# 使用示例
 if __name__ == "__main__":
-    image_path = "files/test.png"
-    # 可视化段落检测结果
-    visualize_paragraphs(image_path)
-    
-    # 裁切图像并保存段落
-    split_image_by_paragraphs(image_path, "output_paragraphs")
+    process_directory()

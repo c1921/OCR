@@ -28,7 +28,16 @@ def main():
         exit(1)
     
     # 获取所有段落图片
-    image_files = sorted(glob.glob(os.path.join(input_dir, "paragraph_*.png")))
+    image_files = []
+    for ext in ['*.png', '*.jpg', '*.jpeg']:
+        # 修改文件匹配模式为 *_para_*.png
+        image_files.extend(glob.glob(os.path.join(input_dir, f"*_para_*{ext}")))
+    
+    # 对文件名进行自然排序
+    image_files = sorted(image_files, key=lambda x: (
+        os.path.basename(x).split('_para_')[0],  # 首先按基础文件名排序
+        int(os.path.basename(x).split('_para_')[1].split('.')[0])  # 然后按段落序号排序
+    ))
     
     if not image_files:
         print(f"错误：在 {input_dir} 目录下没有找到段落图片！")
@@ -44,7 +53,18 @@ def main():
     print("==> 开始OCR识别...")
     
     with open(output_filename, "w", encoding="utf-8") as f:
+        current_base_name = None
+        
         for img_path in image_files:
+            base_name = os.path.basename(img_path).split('_para_')[0]
+            
+            # 如果是新的文件，添加文件名作为标题
+            if base_name != current_base_name:
+                if current_base_name is not None:
+                    f.write("\n\n" + "="*50 + "\n\n")  # 文件之间的分隔符
+                f.write(f"# {base_name}\n\n")
+                current_base_name = base_name
+            
             print(f"正在处理: {os.path.basename(img_path)}")
             
             # OCR识别
