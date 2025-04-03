@@ -10,7 +10,7 @@ def load_config():
     try:
         with open('config.yaml', 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
-        return config['pdf_settings']
+            return config['pdf_settings']
     except Exception as e:
         print(f"加载配置文件失败: {str(e)}")
         # 返回默认配置
@@ -20,7 +20,7 @@ def load_config():
             'dpi': 96,
             'thread_count': 8,
             'max_workers': 2,
-            'format': 'png'  # 改为PNG格式
+            'format': 'png'
         }
 
 def pdf_to_images(pdf_path, output_dir, config):

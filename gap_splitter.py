@@ -5,10 +5,19 @@ import glob
 import yaml
 
 def load_config():
-    """加载配置文件"""
+    """加载配置文件并转换配置项为大写格式"""
     try:
         with open('config.yaml', 'r', encoding='utf-8') as f:
-            return yaml.safe_load(f)
+            config = yaml.safe_load(f)
+            
+        # 转换需要大写的配置项
+        uppercase_keys = ['directories']
+        
+        for key in uppercase_keys:
+            if key in config:
+                config[key] = {k.upper(): v for k, v in config[key].items()}
+                
+        return config
     except Exception as e:
         print(f"加载配置文件失败: {str(e)}")
         return None
