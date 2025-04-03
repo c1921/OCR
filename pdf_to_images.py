@@ -20,8 +20,7 @@ def load_config():
             'dpi': 96,
             'thread_count': 8,
             'max_workers': 2,
-            'format': 'jpeg',
-            'quality': 95
+            'format': 'png'  # 改为PNG格式
         }
 
 def pdf_to_images(pdf_path, output_dir, config):
@@ -67,7 +66,8 @@ def pdf_to_images(pdf_path, output_dir, config):
             # 将临时文件移动到目标目录
             print("正在保存图片...")
             for i, image_path in enumerate(tqdm(images, desc="处理页面", unit="页")):
-                output_file = os.path.join(pdf_output_dir, f"{pdf_name}_page_{i+1}.{config['format']}")
+                output_file = os.path.join(pdf_output_dir, 
+                                         f"{pdf_name}_page_{i+1}.{config['format']}")
                 try:
                     import shutil
                     shutil.copy2(image_path, output_file)

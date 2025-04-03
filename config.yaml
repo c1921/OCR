@@ -10,8 +10,8 @@ pdf_settings:
   max_workers: 2         # 同时处理的PDF文件数
   
   # 输出图片配置
-  format: "jpeg"         # 输出图片格式
-  quality: 95           # JPEG图片质量(1-100)
+  format: "png"          # 输出格式：png或jpeg
+  jpeg_quality: 95       # JPEG质量(1-100)，仅在format为jpeg时生效
 
 # 图像处理相关参数
 image_processing:
