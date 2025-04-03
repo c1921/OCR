@@ -3,6 +3,32 @@ import cv2
 import numpy as np
 import os
 import yaml
+import logging
+from datetime import datetime
+
+def setup_logging():
+    """设置日志配置"""
+    # 创建logs目录
+    if not os.path.exists('logs'):
+        os.makedirs('logs')
+    
+    # 设置日志文件名（使用时间戳）
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    log_file = f'logs/region_splitter_{timestamp}.log'
+    
+    # 配置日志
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_file, encoding='utf-8'),
+            logging.StreamHandler()  # 同时输出到控制台
+        ]
+    )
+    return logging.getLogger(__name__)
+
+# 创建logger
+logger = setup_logging()
 
 def load_config():
     """加载配置文件并转换配置项为大写格式"""
@@ -101,6 +127,7 @@ def detect_corner_text(img):
     _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
     
     corners = []
+    page_number_found = False
     
     # 1. 检测顶部角标 - 在y=298附近
     y_line = CORNER['TOP_LINE']
@@ -164,6 +191,7 @@ def detect_corner_text(img):
         
         # 如果找到了合适的文本区域且总宽度合适
         if x_max > x_min and (x_max - x_min) <= PAGE_NUMBER['MAX_WIDTH']:
+            page_number_found = True
             # 转换到原图坐标并添加边距
             x_min = max(0, x_min - PAGE_NUMBER['MARGIN'])
             y_min = max(0, y_min + y_line - PAGE_NUMBER['RADIUS'] - PAGE_NUMBER['MARGIN'])
@@ -172,7 +200,7 @@ def detect_corner_text(img):
             
             corners.append(('page', ((x_min, y_min), (x_max, y_max))))
     
-    return corners
+    return corners, page_number_found
 
 def mark_detected_regions(img, corners, separator_positions):
     """标记检测到的区域和分隔线
@@ -318,7 +346,7 @@ class ImageProcessor:
     
     def detect_regions(self):
         """步骤2：检测顶部角标和页码区域"""
-        self.corners = detect_corner_text(self.img)
+        self.corners, self.page_number_found = detect_corner_text(self.img)
         return self
     
     def detect_separators(self):
@@ -357,13 +385,20 @@ class ImageProcessor:
     def process(self):
         """执行完整的处理流水线"""
         try:
-            return (self.load_image()
-                       .detect_regions()
-                       .detect_separators()
-                       .mark_regions()
-                       .save_sections())
+            result = (self.load_image()
+                         .detect_regions()
+                         .detect_separators()
+                         .mark_regions()
+                         .save_sections())
+            
+            # 检查是否检测到页码
+            if not any(type_ == 'page' for type_, _ in self.corners):
+                logger.warning(f"未检测到页码: {self.base_name}")
+            
+            return result
+            
         except Exception as e:
-            print(f"处理图像 {self.image_path} 时出错: {str(e)}")
+            logger.error(f"处理图像 {self.image_path} 时出错: {str(e)}")
             return None
 
 def split_text_and_notes(image_path, output_dir=DIRECTORIES['OUTPUT_REGIONS']):
@@ -374,7 +409,7 @@ def split_text_and_notes(image_path, output_dir=DIRECTORIES['OUTPUT_REGIONS']):
 def process_directory(input_dir=DIRECTORIES['INPUT_DIR']):
     """处理目录中的所有图像"""
     if not os.path.exists(input_dir):
-        print(f"错误：输入目录 {input_dir} 不存在！")
+        logger.error(f"输入目录 {input_dir} 不存在！")
         return
     
     image_files = []
@@ -382,16 +417,27 @@ def process_directory(input_dir=DIRECTORIES['INPUT_DIR']):
         image_files.extend(glob.glob(os.path.join(input_dir, ext)))
     
     if not image_files:
-        print(f"错误：在 {input_dir} 目录下没有找到图像文件！")
+        logger.error(f"在 {input_dir} 目录下没有找到图像文件！")
         return
     
-    print("==> 开始分离正文与注释...")
+    # 自然排序
+    def natural_sort_key(s):
+        """用于自然排序的键函数"""
+        import re
+        # 将字符串中的数字转换为整数，用于正确排序
+        return [int(text) if text.isdigit() else text.lower()
+               for text in re.split('([0-9]+)', s)]
+    
+    # 对文件进行自然排序
+    image_files.sort(key=natural_sort_key)
+    
+    logger.info("==> 开始分离正文与注释...")
     
     for image_path in image_files:
-        print(f"正在处理: {os.path.basename(image_path)}")
+        logger.info(f"正在处理: {os.path.basename(image_path)}")
         split_text_and_notes(image_path)
     
-    print("==> 处理完成！")
+    logger.info("==> 处理完成！")
 
 if __name__ == "__main__":
     process_directory() 
