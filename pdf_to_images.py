@@ -3,17 +3,35 @@ import os
 from tqdm import tqdm
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
-from functools import partial
+import yaml
 
-def pdf_to_images(pdf_path, output_dir, dpi=200, thread_count=4):
+def load_config():
+    """加载配置文件"""
+    try:
+        with open('config.yaml', 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+        return config['pdf_settings']
+    except Exception as e:
+        print(f"加载配置文件失败: {str(e)}")
+        # 返回默认配置
+        return {
+            'input_folder': './pdf_input',
+            'output_folder': './output_images',
+            'dpi': 96,
+            'thread_count': 8,
+            'max_workers': 2,
+            'format': 'jpeg',
+            'quality': 95
+        }
+
+def pdf_to_images(pdf_path, output_dir, config):
     """
     将PDF文件转换为图片
     
     参数:
         pdf_path (str): PDF文件的路径
         output_dir (str): 输出图片的目录
-        dpi (int): 图片的分辨率，默认200
-        thread_count (int): 转换使用的线程数，默认4
+        config (dict): 配置参数
     """
     # 创建输出目录（如果不存在）
     if not os.path.exists(output_dir):
@@ -32,16 +50,16 @@ def pdf_to_images(pdf_path, output_dir, dpi=200, thread_count=4):
         with tempfile.TemporaryDirectory() as temp_dir:
             print(f"\n正在处理PDF: {pdf_name}")
             
-            # 使用pdftocairo和JPEG格式来提升性能
+            # 使用pdftocairo和配置的格式来转换
             images = convert_from_path(
                 pdf_path,
-                dpi=dpi,
+                dpi=config['dpi'],
                 output_folder=temp_dir,
-                fmt='jpeg',
-                thread_count=thread_count,
+                fmt=config['format'],
+                thread_count=config['thread_count'],
                 use_pdftocairo=True,
                 output_file=pdf_name,
-                paths_only=True  # 只返回文件路径而不是图片对象
+                paths_only=True
             )
             
             total_pages = len(images)
@@ -49,9 +67,8 @@ def pdf_to_images(pdf_path, output_dir, dpi=200, thread_count=4):
             # 将临时文件移动到目标目录
             print("正在保存图片...")
             for i, image_path in enumerate(tqdm(images, desc="处理页面", unit="页")):
-                output_file = os.path.join(pdf_output_dir, f"{pdf_name}_page_{i+1}.jpg")
+                output_file = os.path.join(pdf_output_dir, f"{pdf_name}_page_{i+1}.{config['format']}")
                 try:
-                    # 使用文件复制替代图片对象操作
                     import shutil
                     shutil.copy2(image_path, output_file)
                 except Exception as e:
@@ -65,21 +82,20 @@ def pdf_to_images(pdf_path, output_dir, dpi=200, thread_count=4):
         print(f"转换过程中出现错误: {str(e)}")
         return False
 
-def process_single_pdf(pdf_file, input_folder, output_folder, current, total):
+def process_single_pdf(pdf_file, input_folder, output_folder, current, total, config):
     """处理单个PDF文件"""
     pdf_path = os.path.join(input_folder, pdf_file)
     print(f"\n[{current}/{total}] 处理PDF文件: {pdf_file}")
-    return pdf_to_images(pdf_path, output_folder)
+    return pdf_to_images(pdf_path, output_folder, config)
 
-def process_pdf_folder(input_folder="./pdf_input", output_folder="./output_images", max_workers=2):
-    """
-    处理指定文件夹下的所有PDF文件
+def process_pdf_folder():
+    """处理指定文件夹下的所有PDF文件"""
+    # 加载配置
+    config = load_config()
+    input_folder = config['input_folder']
+    output_folder = config['output_folder']
+    max_workers = config['max_workers']
     
-    参数:
-        input_folder (str): 输入PDF文件夹路径
-        output_folder (str): 输出图片文件夹路径
-        max_workers (int): 同时处理的PDF文件数，默认2
-    """
     # 确保输入文件夹存在
     if not os.path.exists(input_folder):
         print(f"输入文件夹 {input_folder} 不存在！")
@@ -99,14 +115,14 @@ def process_pdf_folder(input_folder="./pdf_input", output_folder="./output_image
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = []
         for i, pdf_file in enumerate(pdf_files):
-            # 直接创建future对象
             future = executor.submit(
                 process_single_pdf,
                 pdf_file,
                 input_folder,
                 output_folder,
                 i + 1,
-                total_pdfs
+                total_pdfs,
+                config
             )
             futures.append(future)
         

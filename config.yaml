@@ -1,0 +1,75 @@
+# PDF转换配置
+pdf_settings:
+  # 输入输出路径配置
+  input_folder: "./pdf_input"    # PDF文件输入目录
+  output_folder: "./output_images"  # 图片输出目录
+  
+  # 转换参数配置
+  dpi: 96                # 输出图片分辨率
+  thread_count: 8        # 单个PDF转换的线程数
+  max_workers: 2         # 同时处理的PDF文件数
+  
+  # 输出图片配置
+  format: "jpeg"         # 输出图片格式
+  quality: 95           # JPEG图片质量(1-100)
+
+# 图像处理相关参数
+image_processing:
+  min_line_height: 10            # 最小行高
+  gaussian_blur_kernel: [5, 5]   # 高斯模糊核大小
+  projection_threshold: 0.05     # 投影阈值比例
+  line_margin: 5                 # 行边距
+  window_size: 10               # 滑动窗口大小
+  text_threshold: 0.15          # 文本检测阈值
+
+# 段落检测相关参数
+paragraph_detection:
+  space_median_ratio: 1.3       # 行间距中位数比例
+  space_mean_std_ratio: 0.5     # 行间距均值标准差比例
+
+# 文件和目录配置
+directories:
+  input_dir: "img_input"
+  output_regions: "output_regions"   # 区域分割的输出目录
+  output_sections: "output_sections" # 段落分割的输出目录
+  output_marked: "output_marked"     # 标记后的图像
+
+# 图像格式
+image_extensions: ["*.png", "*.jpg", "*.jpeg", "*.bmp"]
+
+# 标记颜色 (BGR格式)
+colors:
+  space_mark: [0, 255, 0]      # 行间距标记颜色（绿色）
+  indent_mark: [0, 0, 255]     # 缩进标记颜色（红色）
+  separator_mark: [255, 0, 0]  # 分隔线标记颜色（蓝色）
+  corner_mark: [255, 165, 0]   # 角标标记颜色（橙色）
+  page_cut_mark: [255, 0, 255] # 页码裁切线和区域标记颜色（紫色）
+
+# 标记线配置
+mark_line:
+  thickness: 2                 # 线宽
+  vertical_offset: 2           # 垂直偏移
+
+# 分隔线检测相关配置
+separator:
+  min_length: 400             # 分隔线最小长度
+  max_length: 600             # 分隔线最大长度
+  max_height: 3               # 分隔线最大高度
+  margin: 10                  # 切分时的边距
+  min_section_height: 30      # 最小文本段落高度
+
+# 角标检测相关配置
+corner:
+  width: 150                  # 角落区域宽度
+  height: 150                 # 角落区域高度
+  margin: 10                  # 切除时的边距
+  top_line: 298              # 顶部角标检测线
+  top_radius: 60             # 顶部角标检测范围
+  max_height: 50             # 顶部角标最大高度
+
+# 页码检测相关配置
+page_number:
+  radius: 60                 # 检测区域半径
+  max_width: 120             # 页码最大宽度
+  max_height: 50             # 页码最大高度
+  margin: 5                  # 切除时的边距 

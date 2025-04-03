@@ -2,7 +2,30 @@ import glob
 import cv2
 import numpy as np
 import os
-from config import *
+import yaml
+
+def load_config():
+    """加载配置文件"""
+    try:
+        with open('config.yaml', 'r', encoding='utf-8') as f:
+            return yaml.safe_load(f)
+    except Exception as e:
+        print(f"加载配置文件失败: {str(e)}")
+        return None
+
+# 加载配置
+config = load_config()
+if not config:
+    raise ValueError("无法加载配置文件")
+
+# 从配置中获取常量
+DIRECTORIES = config['directories']
+IMAGE_EXTENSIONS = config['image_extensions']
+COLORS = config['colors']
+MARK_LINE = config['mark_line']
+SEPARATOR = config['separator']
+CORNER = config['corner']
+PAGE_NUMBER = config['page_number']
 
 def detect_separator_lines(image_path):
     """检测注释分隔线"""
