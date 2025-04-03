@@ -73,3 +73,5 @@ img_input/
 output_sections/
 output_regions/
 output_gaps/
+pdf_input/
+output_images/
